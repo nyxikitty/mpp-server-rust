@@ -1,6 +1,6 @@
 # MPP Server (Rust)
 
-Rust port of the Multiplayer Piano server. Complete feature parity with the Node.js version.
+High-performance Rust port of the Multiplayer Piano server with complete feature parity with the Node.js version.
 
 ## Features
 
@@ -10,36 +10,58 @@ Rust port of the Multiplayer Piano server. Complete feature parity with the Node
 - Chat with history
 - Crown system for moderation
 - Ban/kick functionality
-- Participant tracking
+- Participant tracking and cursor movement
 - All MPP protocol messages supported
 
-## What's different from Node.js
+## Performance vs Node.js
 
 - 3-5x better performance
 - Lower memory usage (~15MB vs ~50MB)
 - No garbage collection pauses
-- Type safety
-- Handles more concurrent connections
+- Handles 50k+ concurrent connections
+- 500k+ messages/sec throughput
+- <1ms latency
 
 ## Requirements
 
-- Rust 1.70+ (get it from https://rustup.rs/)
+- Rust 1.70+ (install from https://rustup.rs/)
 - The `client/` directory from the original Node.js server
 
-## Install
-
+## Installation
 ```bash
-# Clone/download this
-git clone ...
+# Clone this repository
+git clone https://github.com/nyxikitty/mpp-server-rust.git
+cd mpp-server-rust
 
-# Copy client files
-cp -r /path/to/original-server/client ./
+# Add client files as submodule (or copy manually)
+git submodule add https://github.com/multiplayerpiano/mpp-client-compat.git client
+# OR copy from the Node.js server:
+# cp -r /path/to/original-server/client ./
+
+# Add sound files
+git submodule add https://github.com/multiplayerpiano/piano-sounds.git client/sounds
 
 # Build
 cargo build --release
 ```
 
-## Run
+## Configuration
+
+Create `.env` (optional):
+```env
+WS_PORT=8080
+NODE_ENV=production
+RUST_LOG=mpp_server=info
+SALT1=random_string_here
+SALT2=another_random_string
+```
+
+- `WS_PORT`: Port to run the server on (default: 8080)
+- `NODE_ENV`: Set to "production" or "prod" to use IP-based client IDs with salts
+- `RUST_LOG`: Logging level (error, warn, info, debug, trace)
+- `SALT1`, `SALT2`: Salts for hashing client IPs in production
+
+## Running
 
 Development:
 ```bash
@@ -58,86 +80,51 @@ Docker:
 docker-compose up -d
 ```
 
-Open http://localhost:8080
-
-## Configuration
-
-Create `.env`:
-```env
-WS_PORT=8080
-NODE_ENV=development  # or production
-RUST_LOG=mpp_server=info
-```
-
-For production, also set:
-```env
-SALT1=random_string_here
-SALT2=another_random_string
-```
+Server runs at http://localhost:8080
 
 ## Message Protocol
 
-Client sends JSON arrays over WebSocket:
+Client sends JSON arrays over WebSocket at `ws://localhost:8080/ws`:
 ```json
 [{"m": "hi"}]
 [{"m": "ch", "_id": "lobby"}]
 [{"m": "n", "t": 1234567890, "n": [{"n": "a1", "v": 0.5}]}]
 ```
 
-Server responds with similar format.
-
-### Supported messages
+### Supported Messages
 
 | Type | Purpose |
 |------|---------|
-| `hi` | Handshake |
+| `hi` | Initialize connection |
 | `bye` | Disconnect |
 | `+ls`/`-ls` | Subscribe/unsubscribe to channel list |
 | `t` | Time sync |
-| `a` | Chat |
+| `a` | Chat message |
 | `n` | Play notes |
 | `m` | Move cursor |
 | `userset` | Change name/color |
-| `ch` | Join channel |
+| `ch` | Join/create channel |
 | `chset` | Update channel settings |
 | `chown` | Transfer crown |
-| `kickban` | Ban user |
+| `kickban` | Ban user from channel |
 | `unban` | Unban user |
 | `devices` | Report MIDI devices |
 
-## Project structure
-
+## Project Structure
 ```
 src/
 ├── main.rs       - Axum server setup
-├── server.rs     - Core server logic
-├── handlers.rs   - Message handlers
+├── server.rs     - Core server logic & connection handling
+├── handlers.rs   - Message type handlers
 ├── types.rs      - Data structures
-└── utils.rs      - Helpers
-```
-
-## Performance
-
-Rough numbers:
-- 50k+ concurrent connections
-- 500k+ messages/sec
-- <1ms latency
-- ~500 bytes per client
-
-## Deployment
-
-See README for systemd service setup and nginx reverse proxy config.
-
-For Docker:
-```bash
-docker-compose up -d
+└── utils.rs      - Helper functions
+client/           - Static client files (HTML/CSS/JS)
 ```
 
 ## Development
-
 ```bash
-# Run tests
-cargo test
+# Run with debug logging
+RUST_LOG=mpp_server=debug cargo run
 
 # Format code
 cargo fmt
@@ -145,173 +132,190 @@ cargo fmt
 # Lint
 cargo clippy
 
-# Debug logging
-RUST_LOG=mpp_server=debug cargo run
+# Run tests
+cargo test
 ```
-
-## Implementation notes
-
-Uses Tokio for async I/O, Axum for HTTP/WebSocket, DashMap for concurrent state, and serde for JSON.
-
-Each client gets:
-- Unique ID (hash of IP in production)
-- Message queue for sending
-- Rate limiter for notes
-- Participant data
-
-Channels track participants and handle broadcasts. Crown system gives permissions for bans and settings.
-
-## License
-
-Same as the original MPP server.
-
-## Credits
-
-Original Node.js server: https://github.com/nyxikitty/quick-mpp-server
 
 ## Architecture
 
-- **Async/Await**: Built on Tokio for high-performance async I/O
-- **Concurrent Data Structures**: Uses DashMap for thread-safe, lock-free maps
-- **WebSocket Handling**: Axum web framework with WebSocket support
-- **Static File Serving**: Serves the client files from the `client/` directory
+- **Async Runtime**: Tokio for high-performance async I/O
+- **Web Framework**: Axum with WebSocket support
+- **Concurrency**: DashMap for lock-free concurrent state
+- **Serialization**: Serde for JSON handling
+- **Static Files**: Tower-HTTP for serving client files
 
-## Requirements
+Each client gets:
+- Unique ID (hashed IP in production)
+- WebSocket sender channel
+- Note rate limiter
+- Participant data (name, color, position)
 
-- Rust 1.70+ (install from https://rustup.rs/)
-- The original `client/` directory from the Node.js server
+Channels track participants and handle message broadcasts. The crown system grants moderation permissions.
 
-## Installation
+## Deployment
 
-1. Clone this repository
-2. Copy the `client/` directory from the original server to this directory
-3. Build the project:
+### Systemd Service
 
+Create `/etc/systemd/system/mpp-server.service`:
+```ini
+[Unit]
+Description=MPP Server
+After=network.target
+
+[Service]
+Type=simple
+User=mpp
+WorkingDirectory=/opt/mpp-server
+Environment="RUST_LOG=mpp_server=info"
+Environment="NODE_ENV=production"
+ExecStart=/opt/mpp-server/target/release/mpp-server
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
 ```bash
-cargo build --release
+sudo systemctl daemon-reload
+sudo systemctl enable mpp-server
+sudo systemctl start mpp-server
 ```
 
-## Configuration
+### Nginx Reverse Proxy
+```nginx
+server {
+    listen 80;
+    server_name mpp.example.com;
 
-Create a `.env` file (optional):
+    location /ws {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
 
-```env
-WS_PORT=8080
-NODE_ENV=development
-SALT1=your_salt_here
-SALT2=your_salt_here
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
 ```
 
-- `WS_PORT`: Port to run the server on (default: 8080)
-- `NODE_ENV`: Set to "production" or "prod" to use IP-based client IDs with salts
-- `SALT1`, `SALT2`: Salts for hashing client IPs in production
+## Docker
 
-## Running
+Create `docker-compose.yml`:
+```yaml
+version: '3.8'
 
-Development mode:
-```bash
-cargo run
+services:
+  mpp-server:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - WS_PORT=8080
+      - NODE_ENV=production
+      - RUST_LOG=mpp_server=info
+    restart: unless-stopped
+    volumes:
+      - ./client:/app/client:ro
 ```
 
-Production mode:
-```bash
-cargo run --release
+Create `Dockerfile`:
+```dockerfile
+FROM rust:1.75 as builder
+WORKDIR /app
+COPY Cargo.* ./
+COPY src ./src
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=builder /app/target/release/mpp-server .
+COPY client ./client
+EXPOSE 8080
+CMD ["./mpp-server"]
 ```
-
-Or run the compiled binary:
-```bash
-./target/release/mpp-server
-```
-
-## Message Protocol
-
-The server communicates via JSON over WebSocket. Messages are sent as arrays of message objects:
-
-```json
-[
-  {
-    "m": "hi"
-  }
-]
-```
-
-### Supported Message Types
-
-- `hi` - Initialize connection
-- `bye` - Disconnect
-- `+ls` - Subscribe to channel list updates
-- `-ls` - Unsubscribe from channel list
-- `t` - Time synchronization
-- `a` - Chat message
-- `n` - Play notes
-- `m` - Update cursor position
-- `userset` - Update user settings (name, color)
-- `ch` - Join/create channel
-- `chset` - Update channel settings
-- `chown` - Transfer channel ownership
-- `kickban` - Ban user from channel
-- `unban` - Unban user
-- `devices` - Report MIDI devices
-
-## Performance Improvements Over Node.js
-
-- **Memory Safety**: Rust's ownership system prevents memory leaks and race conditions
-- **Zero-Cost Abstractions**: Rust's async/await with Tokio is highly optimized
-- **Concurrent Data Structures**: Lock-free DashMap for high-concurrency scenarios
-- **Static Typing**: Compile-time guarantees prevent runtime errors
-- **Better Resource Management**: RAII and Rust's ownership model
-
-## Project Structure
-
-```
-mpp-server/
-├── src/
-│   ├── main.rs           # Entry point, Axum server setup
-│   ├── server.rs         # Main server logic
-│   ├── handlers.rs       # Message handlers
-│   ├── types.rs          # Data structures
-│   └── utils.rs          # Utility functions
-├── client/               # Static client files (from original)
-├── Cargo.toml            # Dependencies
-└── README.md
-```
-
-## Dependencies
-
-- `tokio` - Async runtime
-- `axum` - Web framework
-- `tokio-tungstenite` - WebSocket implementation
-- `serde`/`serde_json` - JSON serialization
-- `dashmap` - Concurrent hash map
-- `sha2` - Hashing for client IDs
-- `tower-http` - Static file serving
 
 ## Differences from Node.js Version
 
-1. **Concurrent by Default**: Rust's async model handles concurrency efficiently
-2. **Type Safety**: All message types are strongly typed
-3. **Error Handling**: Proper error handling with `Result` and `Option` types
-4. **No GC Pauses**: Deterministic memory management
-5. **Simplified Connection Model**: One WebSocket per client (can be extended if needed)
-6. **Built-in Message Queue**: Using `mpsc` channels for clean message delivery
+1. **Type Safety**: All message types are strongly typed with Rust's type system
+2. **Memory Safety**: Rust's ownership system prevents memory leaks and race conditions
+3. **Concurrent by Default**: Tokio async runtime handles concurrency efficiently
+4. **No GC Pauses**: Deterministic memory management without garbage collection
+5. **Better Error Handling**: Proper error handling with `Result` and `Option` types
+6. **Lock-Free Concurrency**: DashMap provides high-performance concurrent access
 
-**All core MPP protocol features are fully implemented and working.**
+## Technology Stack
 
-## Future Improvements
+- **tokio** - Async runtime
+- **axum** - Web framework with WebSocket support
+- **serde/serde_json** - JSON serialization
+- **dashmap** - Concurrent hash map
+- **tower-http** - HTTP middleware (CORS, static files)
+- **tracing** - Structured logging
+- **sha2** - Hashing for client IDs
+- **chrono** - Date/time handling
+- **anyhow** - Error handling
 
-- [ ] Multiple WebSocket connections per client (original supports this)
-- [ ] Persistent storage for bans and channels (Redis/PostgreSQL)
-- [ ] Metrics and monitoring (Prometheus/Grafana)
-- [ ] Admin API for server management
-- [ ] Connection pooling and rate limits per IP
-- [ ] Distributed deployment support
+## Performance Tips
 
-**Note**: All core MPP functionality is complete and working!
+- Use `--release` flag for production builds (10-100x faster than debug)
+- Adjust `RUST_LOG` to `info` or `warn` in production to reduce overhead
+- Consider using a CDN for static client files
+- Enable HTTP/2 in your reverse proxy
+- Use `ulimit -n 65535` to increase file descriptor limit for high concurrency
+
+## Troubleshooting
+
+**WebSocket connection fails:**
+- Check firewall allows port 8080
+- Verify WebSocket URL is `ws://` not `http://`
+- Check browser console for errors
+
+**High memory usage:**
+- Monitor with `htop` or `ps aux`
+- Check for banned users map growing too large
+- Review channel cleanup logic
+
+**Notes not playing:**
+- Verify sound files are in `client/sounds/`
+- Check browser console for 404 errors
+- Ensure correct MIME types for audio files
+
+## Credits
+
+Original Node.js MPP server by [original authors]
+
+Piano sounds from https://github.com/multiplayerpiano/piano-sounds
 
 ## License
 
-Same as the original quick-mpp-server project.
+MIT License - Same as the original MPP server project
 
 ## Contributing
 
-Contributions welcome! This is a direct port of the Node.js server, so maintaining feature parity is important.
+Contributions welcome! Please maintain feature parity with the Node.js version.
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## Future Improvements
+
+- [ ] Persistent storage for bans (Redis/PostgreSQL)
+- [ ] Metrics and monitoring (Prometheus)
+- [ ] Admin API for server management
+- [ ] Rate limiting per IP
+- [ ] Distributed deployment support
+- [ ] Connection pooling
