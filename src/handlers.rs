@@ -18,8 +18,6 @@ impl MessageHandler {
         client_id: &str,
         msg: IncomingMessage,
     ) -> Option<Vec<serde_json::Value>> {
-        debug!("Handling message type '{}' from {}", msg.m, client_id);
-
         match msg.m.as_str() {
             "hi" => self.handle_hi(client_id).await,
             "bye" => {
@@ -255,7 +253,7 @@ impl MessageHandler {
         });
 
         drop(channel);
-        self.server.broadcast_to_channel(&channel_id, &serde_json::json!([note_msg]), Some(client_id)).await;
+        self.server.broadcast_to_channel(&channel_id, &serde_json::json!([note_msg]), None).await;
     }
 
     async fn handle_movement(&self, client_id: &str, data: &serde_json::Value) {
@@ -316,8 +314,6 @@ impl MessageHandler {
             None => return,
         };
         drop(client);
-
-        tracing::debug!("Broadcasting movement for {} to channel {}", client_id, channel_id);
 
         let movement = serde_json::json!({
             "m": "m",

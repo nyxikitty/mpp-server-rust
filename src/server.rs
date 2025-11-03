@@ -73,7 +73,6 @@ impl Server {
 
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
-                debug!("Outgoing to {}: {}", client_id_for_sender, msg);
                 if let Err(e) = ws_sender.send(Message::Text(msg)).await {
                     error!("Failed to send WebSocket message: {}", e);
                     break;
@@ -89,8 +88,6 @@ impl Server {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
-                    debug!("Received message from {}: {}", client_id, text);
-                    
                     match serde_json::from_str::<Vec<serde_json::Value>>(&text) {
                         Ok(messages) => {
                             for msg_value in messages {
@@ -206,11 +203,8 @@ impl Server {
                 }
             };
 
-            debug!("Broadcasting to channel {}: {} participants", channel_id, channel.participants.len());
-
             for (participant_id, _) in channel.participants.iter() {
                 if Some(participant_id.as_str()) != exclude_client_id {
-                    debug!("Sending to participant: {}", participant_id);
                     self.send_to_client(participant_id, &msg_str).await;
                 }
             }
@@ -221,7 +215,6 @@ impl Server {
 
     pub async fn send_to_client(&self, client_id: &str, message: &str) {
         if let Some(sender) = self.ws_senders.get(client_id) {
-            debug!("Sending to {}: {}", client_id, message);
             if let Err(e) = sender.send(message.to_string()) {
                 error!("Failed to send message to client {}: {}", client_id, e);
             }
