@@ -167,7 +167,7 @@ Same as the original MPP server.
 
 ## Credits
 
-Original Node.js server: https://github.com/multiplayerpiano/mpp-server
+Original Node.js server: https://github.com/nyxikitty/quick-mpp-server
 
 ## Architecture
 
