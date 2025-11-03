@@ -315,3 +315,5 @@ Contributions welcome! Please maintain feature parity with the Node.js version.
 - [ ] Rate limiting per IP
 - [ ] Distributed deployment support
 - [ ] Connection pooling
+
+https://github.com/user-attachments/assets/1e73dfa8-c40d-4217-98d6-f5d7bf7752db
