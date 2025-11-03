@@ -1,6 +1,6 @@
 # MPP Server (Rust)
 
-High-performance Rust port of the Multiplayer Piano server (https://github.com/nyxikitty/quick-mpp-server) with complete feature parity with the Node.js version.
+High-performance Rust port of the Multiplayer Piano server [[Original](https://github.com/nyxikitty/quick-mpp-server)] with complete feature parity with the Node.js version.
 
 https://github.com/user-attachments/assets/1e73dfa8-c40d-4217-98d6-f5d7bf7752db
 
