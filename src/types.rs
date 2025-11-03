@@ -140,7 +140,6 @@ pub struct BanInfo {
     pub expiry: u64,
 }
 
-// Message types
 #[derive(Debug, Deserialize)]
 pub struct IncomingMessage {
     pub m: String,

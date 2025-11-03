@@ -26,7 +26,7 @@ impl Server {
             ws_senders: DashMap::new(),
         };
 
-        // Start note quota tick loop
+        // There are better ways for loops, but I decided to use tokio::time :3
         let clients = server.clients.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
@@ -52,7 +52,6 @@ impl Server {
 
         info!("New connection: client_id={}, connection_id={}", client_id, connection_id);
 
-        // Create or get client
         if !self.clients.contains_key(&client_id) {
             let client_data = ClientData {
                 user_id: client_id.clone(),
@@ -67,13 +66,11 @@ impl Server {
         let (mut ws_sender, mut ws_receiver) = socket.split();
         let (tx, mut rx) = mpsc::unbounded_channel::<String>();
 
-        // Store the sender channel
         self.ws_senders.insert(client_id.clone(), tx);
         debug!("Stored WebSocket sender for client: {}", client_id);
 
         let client_id_for_sender = client_id.clone();
 
-        // Spawn task to handle outgoing messages
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 debug!("Outgoing to {}: {}", client_id_for_sender, msg);
@@ -89,7 +86,6 @@ impl Server {
         let client_id_clone = client_id.clone();
         let self_clone = self.clone();
 
-        // Handle incoming messages
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
@@ -128,7 +124,6 @@ impl Server {
             }
         }
 
-        // Cleanup on disconnect
         self_clone.handle_disconnect(&client_id_clone).await;
         self_clone.ws_senders.remove(&client_id_clone);
 
@@ -146,7 +141,6 @@ impl Server {
                     let mut channel = channel_ref.value().write().await;
                     channel.participants.remove(client_id);
 
-                    // Handle crown transfer
                     if let Some(crown) = &mut channel.crown {
                         if crown.participant_id.as_deref() == Some(client_id) {
                             crown.participant_id = None;
@@ -154,7 +148,6 @@ impl Server {
                         }
                     }
                     
-                    // Transfer crown after releasing the mutable borrow
                     let needs_crown_transfer = channel.crown.as_ref()
                         .map(|c| c.participant_id.is_none())
                         .unwrap_or(false);
@@ -173,7 +166,6 @@ impl Server {
                         }
                     }
 
-                    // Broadcast bye message
                     let bye_msg = serde_json::json!([{
                         "m": "bye",
                         "p": client_id
@@ -181,7 +173,6 @@ impl Server {
                     self.broadcast_to_channel(channel_id, &bye_msg, Some(client_id))
                         .await;
 
-                    // Delete empty non-special channels
                     if channel.participants.is_empty()
                         && channel._id != "lobby"
                         && !channel._id.starts_with("test/")
