@@ -33,12 +33,8 @@ High-performance Rust port of the Multiplayer Piano server with complete feature
 git clone https://github.com/nyxikitty/mpp-server-rust.git
 cd mpp-server-rust
 
-# Add client files as submodule (or copy manually)
-git submodule add https://github.com/multiplayerpiano/mpp-client-compat.git client
-# OR copy from the Node.js server:
-# cp -r /path/to/original-server/client ./
 
-# Add sound files
+# Add sound files (NOT NEEDED! SOUND FILES ARE INCLUDED!)
 git submodule add https://github.com/multiplayerpiano/piano-sounds.git client/sounds
 
 # Build
